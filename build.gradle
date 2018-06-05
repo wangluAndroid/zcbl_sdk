@@ -1,9 +1,13 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
-
+//buildscripe{...}这部分用来配置驱动构建的代码
+//这部分配置只会影响构建过程，和工程没有关系；工程会定义它自己的仓库和相关依赖
 buildscript {
+    //配置使用什么仓库
     repositories {
+        //指定仓库URL快捷方式
         jcenter()
     }
+    //配置 依赖什么插件
     dependencies {
         classpath 'com.android.tools.build:gradle:2.3.3'
 
@@ -21,3 +25,16 @@ allprojects {
 task clean(type: Delete) {
     delete rootProject.buildDir
 }
+
+/**
+ * 设置全局参数
+ * 可以在app/build.gradle中使用：
+ * compileSdkVersion rootProject.ext.compileSdkVersion
+ * buildToolsVersion rootProject.ext.buildToolsVersion
+ */
+ext {
+    compileSdkVersion = 26
+    buildToolsVersion = "26.0.2"
+}
+
+

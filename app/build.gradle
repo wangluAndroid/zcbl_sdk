@@ -1,30 +1,317 @@
+//配置应用android插件；
+//备注：只应用android插件就好了，不要同时应用java插件，因为这会导致构建错误
 apply plugin: 'com.android.application'
 
+import com.android.build.OutputFile
+
+//可以从文件中读取版本名字或者使用一些其他的自定义逻辑
+def computeVersionName(){
+
+    "1.0.2"//不用写return  默认最后一行就是返回值
+}
+
+//配置了android构建需要的所有参数，默认情况下只有编译sdk的版本（compileSDKVersion）、构建工具版本（buildToolsVersion）是必须的；
+//android 元素里的 defaultConfig 负责定义所有的配置。
 android {
-    compileSdkVersion 26
-    buildToolsVersion "26.0.2"
+    //使用全局配置--配置见project/build.gradle
+    compileSdkVersion rootProject.ext.compileSdkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
     defaultConfig {
         applicationId "com.zcbl.client.zcblsdk"
         minSdkVersion 23
         targetSdkVersion 26
         versionCode 1
-        versionName "1.0"
+        versionName computeVersionName()
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+
+        ndk{
+            //生成.so的名字
+            moduleName "hello"
+
+        }
+
+//        multiDexEnabled true
     }
+
+    /**
+     * 这前用上面multiDexEnabled true时，
+     * 突然在5.0以下的手机上跑不起来，
+     * 改成下面这种写法就可以了。
+     */
+    dexOptions {
+        jumboMode true
+    }
+
     buildTypes {
         release {
             minifyEnabled false
+            //有两个默认的规则文件
+            //1.proguard-android.txt
+            //2.proguard-android-optimize.txt
+            //它们都位于SDK中，使用getDefaultProguardFile()方法可以返回文件的全路径。二者除了是否开启优化之外，其他功能全相同；
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // 构建类型是否应该生成可调试的apk
+//            debuggable true
         }
+
+        debug {
+            //配置了默认debug的构建类型：设置包名以.debug为后缀，这样和release的包名不一致了，就能在同一个设备上\
+            //                        同时安装debug和release两个版本的APK
+            applicationIdSuffix ".debug"
+            //构建类型是否配置为使用可调试的本机代码生成APK
+//            jniDebuggable true
+            //注意：使用此配置，需要注释点res/strings/中的app_name ，用来动态配置不同app的名字
+//            resValue('string','app_name','测试版')
+
+        }
+
+        //创建一个buildTypes很简单，只需要在buildTypes容器中添加一个元素，然后调用initWith（）或者使用一个闭包配置它；
+        //initWith所传的参数是为了配置作为哪个（release或者debug）的副本，也就说打出来的包用什么证书签名；
+        //如果不传参数，将会打出一个没有被签名的apk文件
+        jnidebug.initWith(buildTypes.debug)
+
+        jnidebug {
+            applicationIdSuffix ".jnidebug"
+//            packageNameSuffix ".jnidebug"//decorated
+            jniDebuggable true
+            versionNameSuffix ".debug"
+//            signingConfig
+//            proguardFile
+//            proguardFiles
+//            minifyEnabled
+//            zipAlignEnabled
+//            debuggable
+//            jniDebuggable
+//            renderscriptDebuggable
+//            renderscriptOptimLevel
+//            manifestPlaceholders = [PGY_PGYER_APPID:"********"]
+//            buildConfigField('String','API_URL','\"http://www.baidu.com\"')
+        }
+
+    }
+
+
+
+    //通常情况下，Build Type 配置会覆盖其他配置，比如，Build Type 的 packageNameSuffix 会追加到 Product Flavor 的 packageName 之后。
+
+    //也有一些情况是在 Build Type 和 Product Flavor 中都可以设置，在这种情况下，视情况而定。
+
+    //比如， signingConfig 就是这么一个属性。 通过设置 android.buildTypes.release.signingConfig ，可以为所
+    // 有的release包共享相同的SigningConfig，也可以单独通过设置android.productFlavors.*.signingConfig为每
+    // 一个release包指定他们自己的 SigningConfig 。
+
+
+
+    /**
+     * //指定两个维度：是否付费和发布的平台
+     * flavorDimensions中定义的Dimensions排序很重要：这个排序决定了哪一个flavor中设置的属性覆盖哪一个，因为一个flavor中的
+     *                  值（设置的属性）会被替换定义在底优先级的flavor中的值（属性）；比如下面"发布平台（store）"中设置的versionName会
+     *                  覆盖"是否付费（price）"中设置的versionName，也就是打出的包的versionName对应为：google,amazon,baidu;
+     *                  但高优先级的会覆盖低优先级的资源--也就是res目录下的资源文件会遵循优先级覆盖的原则；
+     */
+    flavorDimensions "price","store"
+
+    //android.productFlavors.*是ProductFlavor类型的，和android.defaultConfig对象具有相同的类型，这就意味着他们有相同的属性；
+    //defalutConfig为所有的flavor提供了基本的配置，每一个falvor也都可以重新设置覆盖这些默认值；
+
+    productFlavors{
+        //favours的名字不能和Build Types 名字或者androidTest SourceSet冲突
+        //每一个favours都可以通过一个闭包单独设置
+        google{
+            versionName 'google'
+            dimension "store"
+        }
+        amazon{
+            versionName 'amazon'
+            dimension "store"
+//            manifestPlaceholders = [PGY_PGYER_APPID:"********"]
+            buildConfigField 'String','API_URL','\"API_URL_FLAVOR2\"'
+            buildConfigField("boolean","LOG_DEBUG","false")
+        }
+        baidu{
+            versionName 'baidu'
+            dimension 'store'
+        }
+        free{
+            versionName 'free'
+            dimension 'price'
+        }
+        paid{
+            versionName 'paid'
+            dimension 'price'
+        }
+
+//        //下面的只有没有设置flavorDimensions时才能编译通过
+//        tx{
+//            versionName 'tx'
+//        }
+    }
+
+
+    sourceSets {
+//        main {
+//            //修改项目目录：使用场景-->就是eclipse项目转Android studio项目，需要重新配置项目结构
+//            //要替换默认的源文件夹的话，可以给 srcDirs 指定一个路径数组
+//            manifest.srcFile 'AndroidManifest.xml'
+//            java.srcDirs = ['src']
+//            resources.srcDirs = ['src']
+//            aidl.srcDirs = ['src']
+//            renderscript.srcDirs = ['src']
+//            res.srcDirs = ['res']
+//            assets.srcDirs = ['assets']
+//        }
+    //不同产品不同的文件
+//        falvor1 {
+//            java.srcDirs = ['src/product/java']
+//        }
+//        falvor2 {
+//            java.srcDirs = ['src/temp/java']
+//        }
+    }
+//    //注意：srcDir 会添加指定的文件夹到现有的源文件夹列表中（Gradle文档没有提到这个，但是的确是这样的）
+
+//当默认的工程结构不适用的时候，你可能需要配置它。根据Gradle文档说明，可以通过如下方式重新配置Java工程的 sourceSets:
+//    sourceSets {
+//        main {
+//            java {
+//                srcDir 'src/java' // 指定源码目录
+//            }
+//            resources {
+//                srcDir 'src/resources'//资源目录
+//            }
+//            assets {
+//                srcDir 'src/assets'
+//            }
+//        }
+//    }
+
+    /**
+     * 主要用来配置打包时，来从哪里打包资源或者代码
+     * 说白了 就是告诉编译器你从哪个文件下找出代码，打包进apk文件里
+     */
+//    sourceSets {
+//        main() {
+//            jniLibs.srcDirs = ['src/main/libs']
+//            jni.srcDirs = []
+//        }
+//    }
+
+    /**
+     * 一般应该尽可能的建立一个单一的apk，这个apk可以支持所有的目标设备，但是这会导致一个apk包体积非常大；因为这个apk
+     * 支持所有"屏幕密度"或"应用二进制接口"（ABI）.
+     * 减少apk体积的一种方法，就是创建支持特定屏幕密度或者abi的apk。
+     *
+     * Gradle可以使用splits来进行apk拆分：
+     * 需要在splits{}中添加density{}或者abi{}闭包函数；
+     * 参数说明：
+     * enable:如果为true，Gradle会根据定义的屏幕密度或者abi来生成指定屏幕密度或者abi的apk包；默认为false；
+     * exclude:用来排除应用不需要支持的屏幕密度或者abi，支持的类型一般用逗号分隔；
+     * include:与exclude对应，只能与reset()结合使用才能指定支持的屏幕密度或者abi；支持的类型一般用逗号分隔；
+     * reset():清除默认支持的屏幕密度或abi。注意：这个方法仅当与include元素组合使用时才能添加指定的屏幕密度或者abi；
+     * 比如设置支持密度为ldpi和xxhdpi的设置如下：
+     * splits{
+     *     //density提供所需的屏幕密度和兼容的屏幕尺寸的列表
+     *     density{
+     *         reset()
+     *         include "ldpi","xxhdpi"
+     *     }
+     * }
+     *
+     * compatibleScreens:指定兼容的屏幕尺寸，指定多个尺寸使用逗号分隔；这将在每个拆分的apk的manifest中注入匹配的<compatible-screens>节点；
+     * 这个可选设置提供了在同一个build.gradle中管理屏幕密度和屏幕大小的方法；但是使用<compatible-screens>将限制应用程序使用的设配类型；
+     * universalApk:这个是abi独有的一个配置；如果为true，Gradle将会生成包含所有abi的通用abi以及拆分的apk，通用apk中包含所有的abi代码和资源；
+     *              默认值为false.
+     *              密度APK分裂总是生成一个通用的APK，包含所有屏幕密度的代码和资源。
+     */
+//    splits{
+//
+////        density{
+////            enable true
+////            exclude "ldpi","xxhdpi","xxxhdpi"
+////            compatibleScreens 'small','normal','large','xlarge'
+////        }
+//
+//        abi{
+//            enable true
+//            reset()
+//            include 'x86','armeabi-v7a'
+//            universalApk true
+//        }
+//    }
+
+    // map for the version code
+//    project.ext.versionCodes = ['armeabi': 1, 'armeabi-v7a': 2, 'arm64-v8a': 3, 'mips': 5, 'mips64': 6, 'x86': 8, 'x86_64': 9]
+//
+//    // applicationVariants are e.g. debug, release
+//    applicationVariants.all { variant ->
+//        variant.outputs.each { output ->
+//            // For each separate APK per architecture, set a unique version code as described here:
+//            // http://tools.android.com/tech-docs/new-build-system/user-guide/apk-splits
+////            def versionCodes = ["armeabi-v7a": 1, "x86": 2]
+//
+//            def abi = output.getFilter(OutputFile.ABI)
+//            if (abi != null) {  // null for the universal-debug, universal-release variants
+//                output.versionCodeOverride = project.ext.versionCodes.get(abi) * 100 + defaultConfig.versionCode
+//            }
+//        }
+//    }
+
+}
+
+/**
+ * 为了打包出不同versionCode值的配置
+ * 下面的意思：将打出的x86的apk包的versionCode修改为301，将打出的armeabi-v7a的apk包的versionCode修改为：101
+ * 同android节点下的配置效果一样
+ */
+project.ext.versionCodes = ['armeabi-v7a':1, mips:2, x86:3]
+android.applicationVariants.all { variant ->
+    // assign different version code for each output
+    variant.outputs.each { output ->
+        def abi = output.getFilter(OutputFile.ABI)
+        if (null != abi) {
+            output.versionCodeOverride = project.ext.versionCodes.get(abi) * 100 + android.defaultConfig.versionCode
+        }
+
     }
 }
 
+
+
+//注：dependencies DSL元素是标准Gradle API的一部分，并不属于android的元素
 dependencies {
-    compile fileTree(dir: 'libs', include: ['*.jar'])
+    //compile 配置用来编译main application，它里面的一切都会被添加到编译的classpath中，并且也会被打包到最终的apk中
+    //compile : main application
+    //androidTestCompile: test application
+    //debugCompile: debug Build Type
+    //releaseCompile: release Build Type
+    //因为要构建生成一个APK,必然会有相关联的Build Type,APK默认配置两个（或者更多）编译配置：compile和<buildtpe>Compile.
+    //创建一个新的Build Type 的时候会自动创建一个基于它名字的编译配置；
+    //当一个debug版本需要一个自定义库（比如报告崩溃），但是release版本不需要或者需要一个不同版本的库的时候，会显得非常有用；
+    compile fileTree(include: ['*.jar'], dir: 'libs')
     androidTestCompile('com.android.support.test.espresso:espresso-core:2.2.2', {
         exclude group: 'com.android.support', module: 'support-annotations'
     })
     compile 'com.android.support:appcompat-v7:26.+'
     compile 'com.android.support.constraint:constraint-layout:1.0.2'
     testCompile 'junit:junit:4.12'
+    compile 'com.android.support:recyclerview-v7:26.0.0-alpha1'
+    //配置依赖一个外部库jar包，可以在compile配置里添加一个依赖
+//    compile files('libs/foo.jar')
+    debugCompile 'com.android.support:recyclerview-v7:26.0.0-alpha1'
+    //引用一个根目录下的库工程方式如下：
+//    compile project(':libraries:lib1')
+
+    //设置不同的产品引入不同的包
+//    falvor1Compile 'com.android.support:recyclerview-v7:26.0.0-alpha1'
 }
+
+////生成arr
+//repositories {
+//    flatDir {
+//        dirs 'aars'
+//    }
+//}
+////使用aar
+//dependencies {
+//    compile(name:'libraryname', ext:'aar')
+//}
